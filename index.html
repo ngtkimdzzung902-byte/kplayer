@@ -97,19 +97,30 @@
   .chip.active-red { background: linear-gradient(90deg, var(--red-1), var(--red-2)); }
   .chip.active-purple { background: linear-gradient(180deg, var(--purple-1), var(--purple-2)); }
 
-  .fb-grid { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
-  .fb-grid::-webkit-scrollbar { display: none; }
+  .fb-grid { display: flex; flex-direction: column; gap: 14px; padding-bottom: 10px; }
+  body.mode-ipad .fb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
   .fb-card {
-    width: 300px; flex-shrink: 0; padding: 14px; border-radius: 20px;
-    background: radial-gradient(circle at 50% 0%, rgba(110,95,245,0.32), rgba(16,20,36,0.96) 75%);
-    border: 1px solid rgba(255,255,255,0.08);
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%; padding: 18px 16px; border-radius: 24px;
+    background: radial-gradient(circle at 50% 0%, rgba(28, 118, 118, 0.34), rgba(14, 18, 28, 0.96) 78%);
+    border: 1px solid rgba(255,255,255,0.09);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
   }
-  .team-box { width: 82px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
-  .team-box img { width: 44px; height: 44px; object-fit: contain; }
-  .team-box span { font-size: 12px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .fb-mid { flex: 1; text-align: center; font-size: 11px; color: var(--sub); }
-  .fb-live { color: #ff453a; font-weight: 800; font-size: 11px; margin: 3px 0; }
+  .team-box { width: 32%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
+  .team-box img { width: 58px; height: 58px; border-radius: 10px; object-fit: contain; background: rgba(255,255,255,0.04); }
+  .team-avatar {
+    width: 58px; height: 58px; border-radius: 50%;
+    background: rgba(255,255,255,0.12); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800; letter-spacing: 0.5px;
+  }
+  .team-box span { font-size: 14px; font-weight: 600; line-height: 1.3; color: #fff; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .fb-mid { width: 34%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
+  .fb-blv { font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.92); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fb-live { color: #ff453a; font-weight: 800; font-size: 12px; letter-spacing: 0.4px; }
+  .fb-time-pill {
+    padding: 6px 12px; border-radius: 12px; background: rgba(255,255,255,0.08);
+    font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.86); line-height: 1.35;
+  }
 
   #detail-view {
     position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 120;
@@ -205,8 +216,14 @@
 
   <section id="page-2" style="display:none;">
     <div class="row-between" style="margin-bottom:14px;">
-      <div class="sec-title">BÓNG ĐÁ</div>
-      <button class="chip" onclick="loadM3U()">Làm mới</button>
+      <div class="sec-title" style="font-size:24px;">Tất cả các nhóm</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="icon-sq" style="border-radius:50%;background:rgba(255,255,255,0.12);" onclick="toggleFbSearch()">🔍</button>
+        <button class="chip" style="padding:8px 12px;" onclick="loadM3U()">↻</button>
+      </div>
+    </div>
+    <div id="fb-search-wrap" style="display:none;margin-bottom:14px;">
+      <input id="fb-q" class="inp" style="width:100%;" type="search" placeholder="Tìm tên đội bóng, BLV..." oninput="renderFootball()">
     </div>
     <div class="chips">
       <button class="chip active-purple" id="lg-ALL" onclick="setLeague('ALL')">Tất cả</button>
@@ -469,6 +486,19 @@ function playEpisode(idx) {
   openPlayer(ep.link_m3u8, ep.link_embed, `${curMovie ? curMovie.name : ''} - ${ep.name || ''}`);
 }
 
+function toggleFbSearch() {
+  const w = document.getElementById('fb-search-wrap');
+  w.style.display = (w.style.display === 'none') ? 'block' : 'none';
+  if (w.style.display === 'block') document.getElementById('fb-q').focus();
+}
+
+function teamInitials(name) {
+  const words = (name || '').replace(/[^a-zA-Z0-9\u00C0-\u024F\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
 async function loadM3U() {
   const u = localStorage.getItem('kjun_pwa_m3u') || 'https://k.kjunn.workers.dev/';
   document.getElementById('m3u-inp').value = u;
@@ -476,7 +506,8 @@ async function loadM3U() {
     const txt = await (await fetch(u)).text();
     const lines = txt.split(/\r?\n/), list = [];
     for (let i = 0; i < lines.length; i++) {
-      if (!lines[i].startsWith('#EXTINF:')) continue;
+      const line = lines[i].trim();
+      if (!line.startsWith('#EXTINF:')) continue;
       let stream = '';
       for (let j = i + 1; j < lines.length; j++) {
         const c = lines[j].trim();
@@ -485,14 +516,42 @@ async function loadM3U() {
         break;
       }
       if (!stream) continue;
-      const g = (lines[i].match(/group-title="([^"]+)"/) || [,'Trực tiếp'])[1];
-      const lg = (lines[i].match(/tvg-logo="([^"]+)"/) || [,''])[1];
-      const raw = lines[i].split(',').slice(1).join(',').trim();
-      let s = raw.replace(/^[🟢🟡🔴🟣⚽🏀🏐\s]+/u, '').trim();
-      let home = s, away = s;
-      const vs = s.toLowerCase().indexOf(' vs ');
-      if (vs > 0) { home = s.slice(0, vs).trim(); away = s.slice(vs + 4).trim(); }
-      list.push({ group: g, logo: lg, stream, home, away, raw });
+
+      const gMatch = line.match(/group-title=["']([^"']+)["']/i);
+      const lgMatch = line.match(/tvg-logo=["']([^"']+)["']/i);
+      const nameMatch = line.match(/tvg-name=["']([^"']+)["']/i);
+      const g = gMatch ? gMatch[1].trim() : 'Live Match';
+      const lg = lgMatch ? lgMatch[1].trim() : '';
+
+      const commaIdx = line.lastIndexOf(',');
+      let raw = commaIdx >= 0 ? line.slice(commaIdx + 1).trim() : '';
+      if (!raw && nameMatch) raw = nameMatch[1].trim();
+      if (!raw) raw = stream.split('/').pop().split('?')[0] || 'Trực tiếp';
+
+      let clean = raw.replace(/^[🟢🟡🔴🟣⚽🏀🏐🔥📺\s]+/u, '').trim();
+      let blv = '';
+      const pipeParts = clean.split('|').map(x => x.trim()).filter(Boolean);
+      if (pipeParts.length >= 2) {
+        blv = pipeParts[pipeParts.length - 1];
+        clean = pipeParts.slice(0, -1).join(' ');
+      }
+      let timeStr = '';
+      const tm = clean.match(/(\d{1,2}\/\d{1,2}\s*\d{1,2}:\d{2}(?:\s*[AP]M)?|\d{1,2}:\d{2}(?:\s*[AP]M)?)/i);
+      if (tm) {
+        timeStr = tm[1].trim();
+        clean = clean.replace(tm[0], '').replace(/^[-–:\s]+|[-–:\s]+$/g, '').trim();
+      }
+
+      let home = clean, away = '';
+      const vsMatch = clean.match(/\s+(?:vs\.?|v\.?|-)\s+/i);
+      if (vsMatch) {
+        const idx = clean.indexOf(vsMatch[0]);
+        home = clean.slice(0, idx).trim();
+        away = clean.slice(idx + vsMatch[0].length).trim();
+      } else {
+        away = home;
+      }
+      list.push({ group: g, logo: lg, stream, home, away, blv, timeStr, raw });
     }
     allMatches = list;
     renderFootball();
@@ -512,14 +571,23 @@ function setLeague(l) {
 
 function renderFootball() {
   const box = document.getElementById('fb-container'); box.innerHTML = '';
+  const qEl = document.getElementById('fb-q');
+  const q = qEl ? qEl.value.trim().toLowerCase() : '';
+
   const items = allMatches.filter(m => {
+    const h = (m.raw + ' ' + m.group).toLowerCase();
+    if (q && !h.includes(q)) return false;
     if (curLeague === 'ALL') return true;
-    const h = m.raw.toLowerCase();
-    if (curLeague === 'EPL') return /(arsenal|chelsea|liverpool|man city|manchester|tottenham|newcastle|aston villa)/.test(h);
-    if (curLeague === 'LALIGA') return /(real madrid|barcelona|barca|atletico|sevilla|valencia|villarreal)/.test(h);
-    if (curLeague === 'C1') return /(c1|champions|bayern|psg|inter|milan|juventus)/.test(h);
+    if (curLeague === 'EPL') return /(arsenal|chelsea|liverpool|man city|manchester|tottenham|newcastle|aston villa|epl|ngoai hang)/.test(h);
+    if (curLeague === 'LALIGA') return /(real madrid|barcelona|barca|atletico|sevilla|valencia|villarreal|la liga)/.test(h);
+    if (curLeague === 'C1') return /(c1|champions|bayern|psg|inter|milan|juventus|ucl)/.test(h);
     return true;
   });
+
+  if (!items.length) {
+    box.innerHTML = '<div class="sec-sub">Không có trận đấu phù hợp.</div>';
+    return;
+  }
 
   const groups = {};
   items.forEach(m => { (groups[m.group] = groups[m.group] || []).push(m); });
@@ -529,11 +597,20 @@ function renderFootball() {
     const row = document.createElement('div'); row.className = 'fb-grid';
     groups[gName].forEach(m => {
       const card = document.createElement('div'); card.className = 'fb-card tap';
+      const leftLogo = m.logo
+        ? `<img referrerpolicy="no-referrer" src="${m.logo}" onerror="this.outerHTML='<div class=team-avatar>${teamInitials(m.home)}</div>'">`
+        : `<div class="team-avatar">${teamInitials(m.home)}</div>`;
+      const rightLogo = (m.home === m.away && m.logo)
+        ? `<img referrerpolicy="no-referrer" src="${m.logo}" onerror="this.outerHTML='<div class=team-avatar>${teamInitials(m.away)}</div>'">`
+        : `<div class="team-avatar">${teamInitials(m.away)}</div>`;
+      const timePill = m.timeStr ? `<div class="fb-time-pill">${m.timeStr}</div>` : '';
+      const blvHtml = m.blv ? `<div class="fb-blv">${m.blv}</div>` : '';
+
       card.innerHTML = `
-        <div class="team-box">${m.logo ? `<img src="${m.logo}">` : ''}<span>${m.home}</span></div>
-        <div class="fb-mid"><div class="fb-live">● LIVE</div><div>${gName}</div></div>
-        <div class="team-box"><span>${m.away}</span></div>`;
-      card.onclick = () => openPlayer(m.stream, '', `${m.home} vs ${m.away}`);
+        <div class="team-box">${leftLogo}<span>${m.home}</span></div>
+        <div class="fb-mid">${blvHtml}<div class="fb-live">● LIVE</div>${timePill}</div>
+        <div class="team-box">${rightLogo}<span>${m.away}</span></div>`;
+      card.onclick = () => openPlayer(m.stream, '', m.home === m.away ? m.home : `${m.home} vs ${m.away}`);
       row.appendChild(card);
     });
     sec.appendChild(row); box.appendChild(sec);
