@@ -97,11 +97,10 @@
   .chip.active-red { background: linear-gradient(90deg, var(--red-1), var(--red-2)); }
   .chip.active-purple { background: linear-gradient(180deg, var(--purple-1), var(--purple-2)); }
 
-    /* FB_UI_START */
+      /* FB_UI_START */
   .fb-header-swipe {
     flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
-    padding: 6px 4px; user-select: none; -webkit-user-select: none;
-    touch-action: pan-y;
+    padding: 4px 0; user-select: none; -webkit-user-select: none; touch-action: pan-y;
   }
   .fb-header-title {
     font-size: 26px; font-weight: 800; color: #fff;
@@ -112,10 +111,20 @@
     padding: 12px; border-radius: 18px;
     background: rgba(24, 24, 34, 0.96); border: 1px solid rgba(255,255,255,0.1);
   }
-  .fb-grid { display: flex; flex-direction: column; gap: 14px; padding-bottom: 12px; width: 100%; }
-  body.mode-ipad .fb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  body.mode-ipad #fb-group-menu { display: none !important; }
+  body.mode-iphone #fb-btn-refresh { display: none !important; }
+
+  body.mode-iphone .fb-grid {
+    display: flex !important; flex-direction: column !important;
+    overflow-x: visible !important; gap: 14px; padding-bottom: 12px; width: 100%;
+  }
+  body.mode-ipad .fb-grid {
+    display: grid !important; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px; padding-bottom: 12px; width: 100%;
+  }
   .fb-card {
-    width: 100%; padding: 18px 14px; border-radius: 24px;
+    width: 100% !important; flex-shrink: 1 !important;
+    padding: 18px 14px; border-radius: 24px;
     background: radial-gradient(circle at 50% 0%, rgba(28, 118, 118, 0.34), rgba(14, 18, 28, 0.96) 78%);
     border: 1px solid rgba(255,255,255,0.09);
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -235,11 +244,12 @@
 
   <section id="page-2" style="display:none;">
     <div class="row-between" style="margin-bottom:14px;">
-      <div id="fb-group-swipe" class="fb-header-swipe" onclick="toggleGroupMenu()">
+      <div id="fb-group-swipe" class="fb-header-swipe" onclick="if(!isIPad) toggleGroupMenu()">
         <div id="fb-group-title" class="fb-header-title">Tất cả các nhóm</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
         <button class="icon-sq" style="border-radius:50%;background:rgba(255,255,255,0.12);" onclick="toggleFbSearch()">🔍</button>
+        <button id="fb-btn-refresh" class="chip" style="padding:8px 12px;" onclick="loadM3U()">↻</button>
       </div>
     </div>
     <div id="fb-group-menu" class="fb-group-menu"></div>
@@ -518,6 +528,7 @@ function toggleFbSearch() {
 }
 
 function toggleGroupMenu() {
+  if (isIPad) return;
   const m = document.getElementById('fb-group-menu');
   m.style.display = (m.style.display === 'flex') ? 'none' : 'flex';
 }
@@ -531,7 +542,7 @@ function selectFbGroup(g) {
 }
 
 function stepFbGroup(delta) {
-  if (fbGroups.length <= 1) return;
+  if (isIPad || fbGroups.length <= 1) return;
   let idx = fbGroups.indexOf(curFbGroup);
   if (idx < 0) idx = 0;
   idx = (idx + delta + fbGroups.length) % fbGroups.length;
@@ -542,8 +553,12 @@ function stepFbGroup(delta) {
 }
 
 function updateFbGroupUI() {
-  if (!fbGroups.includes(curFbGroup)) curFbGroup = 'ALL';
   const titleEl = document.getElementById('fb-group-title');
+  if (isIPad) {
+    if (titleEl) titleEl.textContent = 'Tất cả các nhóm';
+    return;
+  }
+  if (!fbGroups.includes(curFbGroup)) curFbGroup = 'ALL';
   if (titleEl) titleEl.textContent = (curFbGroup === 'ALL') ? 'Tất cả các nhóm' : curFbGroup;
 
   const menuEl = document.getElementById('fb-group-menu');
@@ -564,12 +579,12 @@ function updateFbGroupUI() {
   if (!el) return;
   let gx = 0, gy = 0;
   el.addEventListener('touchstart', e => {
-    if (!e.touches || !e.touches[0]) return;
+    if (isIPad || !e.touches || !e.touches[0]) return;
     gx = e.touches[0].clientX;
     gy = e.touches[0].clientY;
   }, { passive: true });
   el.addEventListener('touchend', e => {
-    if (!e.changedTouches || !e.changedTouches[0]) return;
+    if (isIPad || !e.changedTouches || !e.changedTouches[0]) return;
     const dx = e.changedTouches[0].clientX - gx;
     const dy = Math.abs(e.changedTouches[0].clientY - gy);
     if (Math.abs(dx) > 40 && dy < 50) {
@@ -665,7 +680,7 @@ function renderFootball() {
   const q = qEl ? qEl.value.trim().toLowerCase() : '';
 
   const items = allMatches.filter(m => {
-    if (curFbGroup !== 'ALL' && m.group !== curFbGroup) return false;
+    if (!isIPad && curFbGroup !== 'ALL' && m.group !== curFbGroup) return false;
     const h = (m.raw + ' ' + m.group).toLowerCase();
     if (q && !h.includes(q)) return false;
     if (curLeague === 'ALL') return true;
