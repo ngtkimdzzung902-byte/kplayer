@@ -277,7 +277,7 @@
     <button class="icon-sq" id="btn-wish" onclick="toggleWish()">♡</button>
   </div>
   <div class="det-hero">
-    <img id="det-img" src="">
+    <img id="det-img" referrerpolicy="no-referrer" src="">
     <div class="det-grad"></div>
   </div>
   <div class="det-body">
@@ -341,14 +341,13 @@ function switchTab(idx) {
 
 function imgUrl(raw) {
   if (!raw) return '';
-  const abs = raw.startsWith('http') ? raw : ('https://phimimg.com/' + raw.replace(/^\/+/, ''));
-  return 'https://wsrv.nl/?url=' + encodeURIComponent(abs) + '&w=340&output=jpg&q=80';
+  return raw.startsWith('http') ? raw : ('https://phimimg.com/' + raw.replace(/^\/+/, ''));
 }
 
 function makeCard(m) {
   const div = document.createElement('div');
   div.className = 'm-card tap';
-  div.innerHTML = `<img class="m-poster" loading="lazy" src="${imgUrl(m.poster_url || m.thumb_url)}"><div class="m-name">${m.name || ''}</div><div class="m-meta">${m.year || ''} • ${m.time || ''}</div>`;
+  div.innerHTML = `<img class="m-poster" loading="lazy" referrerpolicy="no-referrer" src="${imgUrl(m.poster_url || m.thumb_url)}"><div class="m-name">${m.name || ''}</div><div class="m-meta">${m.year || ''} • ${m.time || ''}</div>`;
   div.addEventListener('click', () => openDetail(m));
   return div;
 }
