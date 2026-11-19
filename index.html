@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KjunPlayer">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>KjunPlayer Web</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<style>
+  :root {
+    --bg: #0B0B0F;
+    --card: #16161F;
+    --red-1: #D91438;
+    --red-2: #85081F;
+    --purple-1: #8578FF;
+    --purple-2: #5C4CD9;
+    --sub: rgba(255,255,255,0.68);
+    --top: env(safe-area-inset-top, 16px);
+    --bot: env(safe-area-inset-bottom, 16px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
+  }
+  button, .tap { cursor: pointer; touch-action: manipulation; }
+  .tap * { pointer-events: none; }
+  .tap:active { opacity: 0.72; transform: scale(0.98); }
+
+  #dock {
+    position: fixed; z-index: 90;
+    background: rgba(23, 23, 33, 0.96);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    display: flex; align-items: center; justify-content: space-around;
+  }
+  body.mode-iphone #dock {
+    left: 18px; right: 18px; bottom: calc(var(--bot) + 6px);
+    height: 58px; border-radius: 28px; flex-direction: row; padding: 0 10px;
+  }
+  .dock-btn {
+    display: flex; align-items: center; justify-content: center;
+    color: #9A9AA8; border-radius: 18px; transition: 0.2s ease; border: none; background: transparent;
+  }
+  body.mode-iphone .dock-btn { flex-direction: column; width: 64px; height: 46px; font-size: 10px; gap: 2px; }
+  body.mode-iphone .dock-btn svg { width: 18px; height: 18px; }
+
+  body.mode-ipad #dock {
+    top: 50%; transform: translateY(-50%);
+    flex-direction: column; padding: 12px 10px; border-radius: 34px; gap: 14px;
+  }
+  body.mode-ipad.menu-left #dock { left: 18px; right: auto; }
+  body.mode-ipad.menu-right #dock { right: 18px; left: auto; }
+  body.mode-ipad .dock-btn { width: 58px; height: 54px; }
+  body.mode-ipad .dock-btn span { display: none; }
+  body.mode-ipad .dock-btn svg { width: 24px; height: 24px; }
+
+  .dock-btn.active-movie { background: linear-gradient(90deg, var(--red-1), var(--red-2)); color: #fff; }
+  .dock-btn.active-football { background: linear-gradient(180deg, var(--purple-1), var(--purple-2)); color: #fff; }
+
+  #stage {
+    width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: calc(var(--top) + 16px) 20px calc(var(--bot) + 92px) 20px;
+  }
+  body.mode-ipad.menu-left #stage { padding-left: 104px; padding-right: 26px; }
+  body.mode-ipad.menu-right #stage { padding-right: 104px; padding-left: 26px; }
+  #stage::-webkit-scrollbar { display: none; }
+
+  .sec { margin-bottom: 26px; }
+  .sec-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .sec-title { font-size: 21px; font-weight: 800; }
+  body.mode-ipad .sec-title { font-size: 24px; }
+  .sec-sub { font-size: 13px; color: var(--sub); }
+
+  .h-scroll { display: flex; overflow-x: auto; gap: 16px; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
+  .h-scroll::-webkit-scrollbar { display: none; }
+
+  .m-card { width: 144px; flex-shrink: 0; }
+  body.mode-ipad .m-card { width: 176px; }
+  .m-poster { width: 100%; height: 206px; border-radius: 18px; object-fit: cover; background: #1a1a26; display: block; }
+  body.mode-ipad .m-poster { height: 252px; }
+  .m-name { font-size: 14px; font-weight: 700; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-meta { font-size: 12px; color: var(--sub); margin-top: 3px; }
+
+  .chips { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 18px; padding-bottom: 4px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    padding: 9px 16px; border-radius: 99px; background: rgba(255,255,255,0.1);
+    font-size: 13.5px; font-weight: 700; white-space: nowrap; border: none; color: #fff;
+  }
+  .chip.active-red { background: linear-gradient(90deg, var(--red-1), var(--red-2)); }
+  .chip.active-purple { background: linear-gradient(180deg, var(--purple-1), var(--purple-2)); }
+
+  .fb-grid { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
+  .fb-grid::-webkit-scrollbar { display: none; }
+  .fb-card {
+    width: 300px; flex-shrink: 0; padding: 14px; border-radius: 20px;
+    background: radial-gradient(circle at 50% 0%, rgba(110,95,245,0.32), rgba(16,20,36,0.96) 75%);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .team-box { width: 82px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
+  .team-box img { width: 44px; height: 44px; object-fit: contain; }
+  .team-box span { font-size: 12px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .fb-mid { flex: 1; text-align: center; font-size: 11px; color: var(--sub); }
+  .fb-live { color: #ff453a; font-weight: 800; font-size: 11px; margin: 3px 0; }
+
+  #detail-view {
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 120;
+    background: var(--bg); overflow-y: auto; display: none;
+    padding-bottom: calc(var(--bot) + 40px);
+  }
+  .det-hero { position: relative; height: 320px; }
+  .det-hero img { width: 100%; height: 100%; object-fit: cover; opacity: 0.65; }
+  .det-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11,11,15,0.2), #0B0B0F); }
+  .det-top {
+    position: fixed; top: calc(var(--top) + 12px); left: 18px; right: 18px; z-index: 130;
+    display: flex; justify-content: space-between;
+  }
+  .icon-sq {
+    width: 42px; height: 42px; border-radius: 13px; border: none;
+    background: rgba(0,0,0,0.6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .det-body { padding: 14px 22px; max-width: 900px; margin: 0 auto; }
+  .ep-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .ep-btn {
+    padding: 10px 15px; border-radius: 12px; border: none;
+    background: rgba(255,255,255,0.12); color: #fff; font-weight: 700; font-size: 13.5px;
+  }
+
+  #player-view {
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 200;
+    background: #000; display: none; flex-direction: column;
+  }
+  .pl-bar {
+    height: calc(52px + var(--top)); padding: var(--top) 16px 0 16px;
+    background: #111117; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  #video-el { flex: 1; width: 100%; background: #000; }
+
+  .card-box { background: var(--card); border-radius: 20px; padding: 16px 18px; margin-bottom: 16px; }
+  .row-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .inp {
+    flex: 1; padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.08); color: #fff; font-size: 15px; outline: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <section id="page-0">
+    <div class="row-between" style="margin-bottom:22px;">
+      <div>
+        <div style="font-size:22px;font-weight:900;">Hải Nam</div>
+        <div class="sec-sub">KjunPlayer Web • GitHub Pages</div>
+      </div>
+      <button class="icon-sq" onclick="switchTab(1)">🔍</button>
+    </div>
+
+    <div class="sec" id="sec-recent" style="display:none;">
+      <div class="sec-head">
+        <div class="sec-title">Gần đây</div>
+        <button class="chip" onclick="clearRecent()">Xoá</button>
+      </div>
+      <div class="h-scroll" id="row-recent"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><div class="sec-title">Now Showing</div></div>
+      <div class="h-scroll" id="row-now"><div class="sec-sub">Đang tải phim...</div></div>
+    </div>
+
+    <div class="sec" id="sec-wish" style="display:none;">
+      <div class="sec-head"><div class="sec-title">Wishlist</div></div>
+      <div class="h-scroll" id="row-wish"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><div class="sec-title">Popular</div></div>
+      <div class="h-scroll" id="row-pop"></div>
+    </div>
+  </section>
+
+  <section id="page-1" style="display:none;">
+    <div class="sec-title" style="margin-bottom:14px;">Tìm kiếm & Danh mục</div>
+    <form onsubmit="event.preventDefault(); searchMovies();" style="display:flex;gap:10px;margin-bottom:14px;">
+      <input id="q-inp" class="inp" type="search" placeholder="Nhập tên phim...">
+      <button class="chip active-red" type="submit">Tìm</button>
+    </form>
+    <div class="chips">
+      <button class="chip" onclick="loadCat('phim-le')">Phim lẻ</button>
+      <button class="chip" onclick="loadCat('phim-bo')">Phim bộ</button>
+      <button class="chip" onclick="loadCat('hoat-hinh')">Hoạt hình</button>
+      <button class="chip" onclick="loadCat('tv-shows')">TV Shows</button>
+    </div>
+    <div id="search-list" style="display:flex;flex-wrap:wrap;gap:14px;"></div>
+  </section>
+
+  <section id="page-2" style="display:none;">
+    <div class="row-between" style="margin-bottom:14px;">
+      <div class="sec-title">BÓNG ĐÁ</div>
+      <button class="chip" onclick="loadM3U()">Làm mới</button>
+    </div>
+    <div class="chips">
+      <button class="chip active-purple" id="lg-ALL" onclick="setLeague('ALL')">Tất cả</button>
+      <button class="chip" id="lg-EPL" onclick="setLeague('EPL')">EPL</button>
+      <button class="chip" id="lg-LALIGA" onclick="setLeague('LALIGA')">La Liga</button>
+      <button class="chip" id="lg-C1" onclick="setLeague('C1')">C1</button>
+    </div>
+    <div id="fb-container"><div class="sec-sub">Đang tải danh sách trận...</div></div>
+  </section>
+
+  <section id="page-3" style="display:none;">
+    <div class="sec-title" style="margin-bottom:16px;">Cài đặt</div>
+    <div class="card-box">
+      <div class="row-between" style="margin-bottom:14px;">
+        <div>
+          <div style="font-weight:700;">Trang mở đầu</div>
+          <div class="sec-sub">Chọn màn hình khi mở app</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="chip" id="st-movie" onclick="setStartPage('movie')">Phim</button>
+          <button class="chip" id="st-football" onclick="setStartPage('football')">Bóng đá</button>
+        </div>
+      </div>
+      <div class="row-between ipad-only-row">
+        <div>
+          <div style="font-weight:700;">Vị trí thanh menu (iPad)</div>
+          <div class="sec-sub">Thanh dọc chỉ có icon ở cạnh trái hoặc phải</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="chip" id="pos-left" onclick="setMenuPos('left')">Trái</button>
+          <button class="chip" id="pos-right" onclick="setMenuPos('right')">Phải</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-box">
+      <div style="font-weight:700;margin-bottom:8px;">Link M3U Bóng đá</div>
+      <div style="display:flex;gap:10px;">
+        <input id="m3u-inp" class="inp" type="url" value="https://k.kjunn.workers.dev/">
+        <button class="chip active-purple" onclick="saveM3U()">Lưu</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<nav id="dock">
+  <button class="dock-btn" id="d-0" onclick="switchTab(0)">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L4 9v12h5v-7h6v7h5V9l-8-6z"/></svg>
+    <span>Phim</span>
+  </button>
+  <button class="dock-btn" id="d-1" onclick="switchTab(1)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <span>Tìm</span>
+  </button>
+  <button class="dock-btn" id="d-2" onclick="switchTab(2)">
+    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+    <span>Bóng đá</span>
+  </button>
+  <button class="dock-btn" id="d-3" onclick="switchTab(3)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.66 0-1.25.4-1.51 1z"/></svg>
+    <span>Cài đặt</span>
+  </button>
+</nav>
+
+<div id="detail-view">
+  <div class="det-top">
+    <button class="icon-sq" onclick="closeDetail()">‹</button>
+    <button class="icon-sq" id="btn-wish" onclick="toggleWish()">♡</button>
+  </div>
+  <div class="det-hero">
+    <img id="det-img" src="">
+    <div class="det-grad"></div>
+  </div>
+  <div class="det-body">
+    <h1 id="det-title" style="font-size:26px;font-weight:900;margin-bottom:6px;"></h1>
+    <div id="det-meta" class="sec-sub" style="margin-bottom:14px;"></div>
+    <p id="det-desc" style="font-size:14.5px;line-height:1.55;color:rgba(255,255,255,0.82);margin-bottom:18px;"></p>
+
+    <div style="font-weight:800;margin-bottom:8px;">Chọn bản phát</div>
+    <div class="chips" id="det-servers"></div>
+
+    <div style="font-weight:800;">Danh sách tập</div>
+    <div class="ep-list" id="det-eps"></div>
+  </div>
+</div>
+
+<div id="player-view">
+  <div class="pl-bar">
+    <div style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="pl-title">Đang phát</div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button class="chip" id="btn-srv2" style="display:none;padding:6px 12px;margin:0;" onclick="switchEmbed()">Server Embed</button>
+      <button class="chip active-red" style="padding:6px 12px;margin:0;" onclick="closePlayer()">Đóng</button>
+    </div>
+  </div>
+  <video id="video-el" controls playsinline webkit-playsinline></video>
+  <iframe id="embed-el" style="display:none;flex:1;width:100%;border:none;background:#000;" allowfullscreen></iframe>
+</div>
+
+<script>
+const isIPad = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let menuPos = localStorage.getItem('kjun_pwa_menu_pos') || 'left';
+let startPage = localStorage.getItem('kjun_pwa_start') || 'movie';
+let recentList = JSON.parse(localStorage.getItem('kjun_pwa_recent') || '[]');
+let wishList = JSON.parse(localStorage.getItem('kjun_pwa_wish') || '[]');
+
+let curMovie = null, curServers = [], curEps = [], curEpIdx = 0;
+let allMatches = [], curLeague = 'ALL', hlsInstance = null;
+
+function applyDeviceLayout() {
+  document.body.classList.remove('mode-ipad', 'mode-iphone', 'menu-left', 'menu-right');
+  document.body.classList.add(isIPad ? 'mode-ipad' : 'mode-iphone');
+  if (isIPad) document.body.classList.add(menuPos === 'right' ? 'menu-right' : 'menu-left');
+  document.querySelectorAll('.ipad-only-row').forEach(el => el.style.display = isIPad ? 'flex' : 'none');
+  document.getElementById('pos-left').classList.toggle('active-red', menuPos === 'left');
+  document.getElementById('pos-right').classList.toggle('active-red', menuPos === 'right');
+  document.getElementById('st-movie').classList.toggle('active-red', startPage === 'movie');
+  document.getElementById('st-football').classList.toggle('active-purple', startPage === 'football');
+}
+
+function setMenuPos(p) { menuPos = p; localStorage.setItem('kjun_pwa_menu_pos', p); applyDeviceLayout(); }
+function setStartPage(s) { startPage = s; localStorage.setItem('kjun_pwa_start', s); applyDeviceLayout(); }
+
+function switchTab(idx) {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('page-' + i).style.display = (i === idx) ? 'block' : 'none';
+    const b = document.getElementById('d-' + i);
+    b.className = 'dock-btn';
+    if (i === idx) b.classList.add(i === 2 ? 'active-football' : 'active-movie');
+  }
+  document.getElementById('stage').scrollTop = 0;
+}
+
+function imgUrl(raw) {
+  if (!raw) return '';
+  const abs = raw.startsWith('http') ? raw : ('https://phimimg.com/' + raw.replace(/^\/+/, ''));
+  return 'https://wsrv.nl/?url=' + encodeURIComponent(abs) + '&w=340&output=jpg&q=80';
+}
+
+function makeCard(m) {
+  const div = document.createElement('div');
+  div.className = 'm-card tap';
+  div.innerHTML = `<img class="m-poster" loading="lazy" src="${imgUrl(m.poster_url || m.thumb_url)}"><div class="m-name">${m.name || ''}</div><div class="m-meta">${m.year || ''} • ${m.time || ''}</div>`;
+  div.addEventListener('click', () => openDetail(m));
+  return div;
+}
+
+function renderShelf() {
+  const recSec = document.getElementById('sec-recent');
+  recSec.style.display = recentList.length ? 'block' : 'none';
+  const rRow = document.getElementById('row-recent'); rRow.innerHTML = '';
+  recentList.forEach(m => rRow.appendChild(makeCard(m)));
+
+  const wSec = document.getElementById('sec-wish');
+  wSec.style.display = wishList.length ? 'block' : 'none';
+  const wRow = document.getElementById('row-wish'); wRow.innerHTML = '';
+  wishList.forEach(m => wRow.appendChild(makeCard(m)));
+}
+
+function clearRecent() { recentList = []; localStorage.removeItem('kjun_pwa_recent'); renderShelf(); }
+
+async function loadHome() {
+  try {
+    const r1 = await (await fetch('https://phimapi.com/danh-sach/phim-moi-cap-nhat-v3?page=1&limit=16')).json();
+    const nRow = document.getElementById('row-now'); nRow.innerHTML = '';
+    (r1.items || []).forEach(m => nRow.appendChild(makeCard(m)));
+
+    const r2 = await (await fetch('https://phimapi.com/v1/api/danh-sach/phim-le?page=1&limit=14')).json();
+    const pRow = document.getElementById('row-pop'); pRow.innerHTML = '';
+    ((r2.data && r2.data.items) || r1.items || []).forEach(m => pRow.appendChild(makeCard(m)));
+  } catch (e) {}
+}
+
+async function searchMovies() {
+  const q = document.getElementById('q-inp').value.trim();
+  if (!q) return;
+  const r = await (await fetch('https://phimapi.com/v1/api/tim-kiem?keyword=' + encodeURIComponent(q) + '&page=1&limit=24')).json();
+  renderSearch((r.data && r.data.items) || []);
+}
+
+async function loadCat(slug) {
+  const r = await (await fetch('https://phimapi.com/v1/api/danh-sach/' + slug + '?page=1&limit=24')).json();
+  renderSearch((r.data && r.data.items) || []);
+}
+
+function renderSearch(list) {
+  const box = document.getElementById('search-list'); box.innerHTML = '';
+  list.forEach(m => box.appendChild(makeCard(m)));
+}
+
+async function openDetail(m) {
+  curMovie = m;
+  document.getElementById('detail-view').style.display = 'block';
+  document.getElementById('detail-view').scrollTop = 0;
+  document.getElementById('det-img').src = imgUrl(m.thumb_url || m.poster_url);
+  document.getElementById('det-title').textContent = m.name || '';
+  document.getElementById('det-meta').textContent = m.origin_name || '';
+  document.getElementById('det-desc').textContent = 'Đang tải thông tin tập...';
+  document.getElementById('det-servers').innerHTML = '';
+  document.getElementById('det-eps').innerHTML = '';
+  refreshWishBtn();
+
+  try {
+    const res = await (await fetch('https://phimapi.com/phim/' + encodeURIComponent(m.slug))).json();
+    if (res.movie) {
+      document.getElementById('det-desc').textContent = (res.movie.content || '').replace(/<[^>]+>/g, '');
+      document.getElementById('det-meta').textContent = `${res.movie.origin_name || ''} • ${res.movie.time || ''}`;
+    }
+    curServers = res.episodes || [];
+    if (curServers.length) selectServer(0);
+  } catch (e) {}
+}
+
+function closeDetail() { document.getElementById('detail-view').style.display = 'none'; }
+
+function toggleWish() {
+  if (!curMovie) return;
+  const idx = wishList.findIndex(x => x.slug === curMovie.slug);
+  if (idx >= 0) wishList.splice(idx, 1); else wishList.unshift(curMovie);
+  localStorage.setItem('kjun_pwa_wish', JSON.stringify(wishList));
+  refreshWishBtn(); renderShelf();
+}
+
+function refreshWishBtn() {
+  const exists = curMovie && wishList.some(x => x.slug === curMovie.slug);
+  document.getElementById('btn-wish').textContent = exists ? '♥' : '♡';
+}
+
+function selectServer(sIdx) {
+  const sBox = document.getElementById('det-servers'); sBox.innerHTML = '';
+  curServers.forEach((srv, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (i === sIdx ? ' active-red' : '');
+    const m = (srv.server_name || '').match(/\(([^)]+)\)/);
+    btn.textContent = (m && m[1]) ? m[1] : (srv.server_name || ('Server ' + (i + 1)));
+    btn.onclick = () => selectServer(i);
+    sBox.appendChild(btn);
+  });
+
+  curEps = (curServers[sIdx] && curServers[sIdx].server_data) || [];
+  const eBox = document.getElementById('det-eps'); eBox.innerHTML = '';
+  curEps.forEach((ep, idx) => {
+    const b = document.createElement('button');
+    b.className = 'ep-btn';
+    b.textContent = ep.name || ('Tập ' + (idx + 1));
+    b.onclick = () => playEpisode(idx);
+    eBox.appendChild(b);
+  });
+}
+
+function playEpisode(idx) {
+  curEpIdx = idx;
+  const ep = curEps[idx];
+  if (!ep) return;
+  if (curMovie) {
+    recentList = recentList.filter(x => x.slug !== curMovie.slug);
+    recentList.unshift(curMovie);
+    recentList = recentList.slice(0, 16);
+    localStorage.setItem('kjun_pwa_recent', JSON.stringify(recentList));
+    renderShelf();
+  }
+  openPlayer(ep.link_m3u8, ep.link_embed, `${curMovie ? curMovie.name : ''} - ${ep.name || ''}`);
+}
+
+async function loadM3U() {
+  const u = localStorage.getItem('kjun_pwa_m3u') || 'https://k.kjunn.workers.dev/';
+  document.getElementById('m3u-inp').value = u;
+  try {
+    const txt = await (await fetch(u)).text();
+    const lines = txt.split(/\r?\n/), list = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (!lines[i].startsWith('#EXTINF:')) continue;
+      let stream = '';
+      for (let j = i + 1; j < lines.length; j++) {
+        const c = lines[j].trim();
+        if (!c) continue;
+        if (!c.startsWith('#')) { stream = c; i = j; }
+        break;
+      }
+      if (!stream) continue;
+      const g = (lines[i].match(/group-title="([^"]+)"/) || [,'Trực tiếp'])[1];
+      const lg = (lines[i].match(/tvg-logo="([^"]+)"/) || [,''])[1];
+      const raw = lines[i].split(',').slice(1).join(',').trim();
+      let s = raw.replace(/^[🟢🟡🔴🟣⚽🏀🏐\s]+/u, '').trim();
+      let home = s, away = s;
+      const vs = s.toLowerCase().indexOf(' vs ');
+      if (vs > 0) { home = s.slice(0, vs).trim(); away = s.slice(vs + 4).trim(); }
+      list.push({ group: g, logo: lg, stream, home, away, raw });
+    }
+    allMatches = list;
+    renderFootball();
+  } catch (e) {}
+}
+
+function saveM3U() {
+  const v = document.getElementById('m3u-inp').value.trim();
+  if (v) { localStorage.setItem('kjun_pwa_m3u', v); loadM3U(); }
+}
+
+function setLeague(l) {
+  curLeague = l;
+  ['ALL','EPL','LALIGA','C1'].forEach(k => document.getElementById('lg-' + k).classList.toggle('active-purple', k === l));
+  renderFootball();
+}
+
+function renderFootball() {
+  const box = document.getElementById('fb-container'); box.innerHTML = '';
+  const items = allMatches.filter(m => {
+    if (curLeague === 'ALL') return true;
+    const h = m.raw.toLowerCase();
+    if (curLeague === 'EPL') return /(arsenal|chelsea|liverpool|man city|manchester|tottenham|newcastle|aston villa)/.test(h);
+    if (curLeague === 'LALIGA') return /(real madrid|barcelona|barca|atletico|sevilla|valencia|villarreal)/.test(h);
+    if (curLeague === 'C1') return /(c1|champions|bayern|psg|inter|milan|juventus)/.test(h);
+    return true;
+  });
+
+  const groups = {};
+  items.forEach(m => { (groups[m.group] = groups[m.group] || []).push(m); });
+  Object.keys(groups).forEach(gName => {
+    const sec = document.createElement('div'); sec.className = 'sec';
+    sec.innerHTML = `<div class="sec-head"><div class="sec-title">${gName}</div></div>`;
+    const row = document.createElement('div'); row.className = 'fb-grid';
+    groups[gName].forEach(m => {
+      const card = document.createElement('div'); card.className = 'fb-card tap';
+      card.innerHTML = `
+        <div class="team-box">${m.logo ? `<img src="${m.logo}">` : ''}<span>${m.home}</span></div>
+        <div class="fb-mid"><div class="fb-live">● LIVE</div><div>${gName}</div></div>
+        <div class="team-box"><span>${m.away}</span></div>`;
+      card.onclick = () => openPlayer(m.stream, '', `${m.home} vs ${m.away}`);
+      row.appendChild(card);
+    });
+    sec.appendChild(row); box.appendChild(sec);
+  });
+}
+
+function openPlayer(m3u8Url, embedUrl, title) {
+  document.getElementById('player-view').style.display = 'flex';
+  document.getElementById('pl-title').textContent = title || 'Đang phát';
+  const btn2 = document.getElementById('btn-srv2');
+  btn2.style.display = embedUrl ? 'inline-block' : 'none';
+  btn2.dataset.embed = embedUrl || '';
+  document.getElementById('embed-el').style.display = 'none';
+  document.getElementById('embed-el').src = '';
+  document.getElementById('video-el').style.display = 'block';
+
+  const vid = document.getElementById('video-el');
+  if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+
+  if (m3u8Url && vid.canPlayType('application/vnd.apple.mpegurl')) {
+    vid.src = m3u8Url;
+    vid.play().catch(() => {});
+  } else if (m3u8Url && window.Hls && window.Hls.isSupported()) {
+    hlsInstance = new window.Hls();
+    hlsInstance.loadSource(m3u8Url);
+    hlsInstance.attachMedia(vid);
+    hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, () => vid.play().catch(() => {}));
+  } else if (embedUrl) {
+    switchEmbed();
+  }
+}
+
+function switchEmbed() {
+  const emb = document.getElementById('btn-srv2').dataset.embed;
+  if (!emb) return;
+  const vid = document.getElementById('video-el'); vid.pause(); vid.style.display = 'none';
+  const fr = document.getElementById('embed-el'); fr.style.display = 'block'; fr.src = emb;
+}
+
+function closePlayer() {
+  const vid = document.getElementById('video-el'); vid.pause(); vid.src = '';
+  if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+  document.getElementById('embed-el').src = '';
+  document.getElementById('player-view').style.display = 'none';
+}
+
+let swX = 0, swY = 0;
+window.addEventListener('touchstart', e => {
+  if (!e.touches || !e.touches[0]) return;
+  swX = e.touches[0].clientX;
+  swY = e.touches[0].clientY;
+}, { passive: true });
+
+window.addEventListener('touchend', e => {
+  if (document.getElementById('player-view').style.display === 'flex') return;
+  if (!e.changedTouches || !e.changedTouches[0]) return;
+  const dx = e.changedTouches[0].clientX - swX;
+  const dy = Math.abs(e.changedTouches[0].clientY - swY);
+  if (swX < 36 && dx > 85 && dy < 70) {
+    if (document.getElementById('detail-view').style.display === 'block') {
+      closeDetail();
+    } else if (document.getElementById('page-1').style.display === 'block' ||
+               document.getElementById('page-2').style.display === 'block' ||
+               document.getElementById('page-3').style.display === 'block') {
+      switchTab(0);
+    }
+  }
+}, { passive: true });
+
+applyDeviceLayout();
+renderShelf();
+switchTab(startPage === 'football' ? 2 : 0);
+loadHome();
+loadM3U();
+</script>
+</body>
+</html>
